@@ -16,19 +16,48 @@
 if( !defined('ABSPATH') ) : exit(); endif;
 
 
+// if no woocommerce return from here
+if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ){
+    add_action( 'admin_notices', 'woocommerce_picqer_api_admin_warning');
+    function woocommerce_picqer_api_admin_warning(){
+        echo '<div class="notice notice-warning is-dismissible">
+            <p>Please Install & Activate WooCommerce Plugin To Deal With woocommerce_picqer_api Plugin</p>
+        </div>';
+    }
+    return;
+}
+
+
 // Define plugin constants 
 define( 'WOOCOMMERCE_PICQER_API_PLUGIN_PATH', trailingslashit( plugin_dir_path(__FILE__) ) );
 define( 'WOOCOMMERCE_PICQER_API_PLUGIN_URL', trailingslashit( plugins_url('/', __FILE__) ) );
 define( 'WOOCOMMERCE_PICQER_API_PLUGIN_NAME', 'woocommerce_picqer_api' );
+
+
+// adding settings link into plugin list page
+if( is_admin() ) {
+    add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), 'picqer_settings_link' );
+    function picqer_settings_link( array $links ) {
+        $settings_url = get_admin_url() . "admin.php?page=woocommerce_picqer_api_settings_page";
+        $settings_link = '<a href="' . $settings_url . '" aria-label="' . __('View Picqer Settings', WOOCOMMERCE_PICQER_API_PLUGIN_NAME ) . ' ">' . __('Settings', WOOCOMMERCE_PICQER_API_PLUGIN_NAME ) . '</a>';
+		$action_links = array(
+			'settings' => $settings_link,
+		);
+		return array_merge( $action_links, $links );
+    }
+}
+// adding settings link into plugin list page ends here
+
 
 // clearing unexpected characters
 function picqer_secure_input($data) {
     $data = strval($data);
     $data = strtolower($data);
     $data = trim($data);
+    $data = preg_replace('/\s+/', ' ', $data);
     $data = stripslashes($data);
     $data = htmlspecialchars($data);
-    $special_characters = ['&amp;', '&#38;', '&lsquo;', '&rsquo;', '&sbquo;', '&ldquo;', '&rdquo;', '&bdquo;', '&quot;', '&plus;', '&#43;', '&#x2B;', '&#8722;', '&#x2212;', '&minus;', '&ndash;', '&mdash;', '&reg;', '&#174;', '&sol;', '&#47;', '&bsol;', '&#92;', '&copy;', '&#169;' ];
+    $special_characters = ['&amp;', '&#38;', '&lsquo;', '&rsquo;', '&sbquo;', '&ldquo;', '&rdquo;', '&bdquo;', '&quot;', '&plus;', '&#43;', '&#x2B;', '&#8722;', '&#x2212;', '&minus;', '&ndash;', '&mdash;', '&reg;', '&#174;', '&sol;', '&#47;', '&bsol;', '&#92;', '&copy;', '&#169;', '&equals;', '&#x3D;', '&#61;', '^', '&', '=' ];
     foreach($special_characters as $key => $single_character){
         $data = str_replace($single_character, '&', $data);
     }

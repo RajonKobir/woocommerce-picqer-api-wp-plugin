@@ -11,43 +11,102 @@ class PicqerApiQueries
 {
 
     // grabs all products from picqer
-    public function picqer_api_all_products($picqer_api_base_url, $picqer_api_username, $picqer_api_password)
+    public function picqer_api_all_products( $picqer_api_base_url, $picqer_api_username, $picqer_api_password, $picqer_filter_brands, $picqer_api_offset_number )
     {
 
       // initializing
       $result = '';
 
-      try {
+      if( $picqer_filter_brands != ''){
+        $picqer_api_offset_number = 0;
+          // infinite loop
+          while(1 == 1) {
+            try{
+              // connecting to the API
+              $curl = curl_init();
+      
+              curl_setopt_array($curl, array(
+                CURLOPT_URL => $picqer_api_base_url . 'products?search='.$picqer_filter_brands.'&offset=' . $picqer_api_offset_number,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'GET',
+                CURLOPT_HTTPHEADER => array(
+                  'Authorization: Basic ' . base64_encode("$picqer_api_username:$picqer_api_password"),
+                ),
+              ));
+              
+              $partial_result = curl_exec($curl);
+              $partial_result = json_decode($partial_result, true);
+      
+              if (curl_errno ( $curl )) {
+                $partial_result = 'Curl error: ' . curl_error ( $curl );
+                break;
+                return $partial_result;
+              }
+              
+              curl_close($curl);
 
-        // connecting to the API
-        $curl = curl_init();
+            } catch (PDOException $e) {
 
-        curl_setopt_array($curl, array(
-          CURLOPT_URL => $picqer_api_base_url . 'products',
-          CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_ENCODING => '',
-          CURLOPT_MAXREDIRS => 10,
-          CURLOPT_TIMEOUT => 0,
-          CURLOPT_FOLLOWLOCATION => true,
-          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-          CURLOPT_CUSTOMREQUEST => 'GET',
-          CURLOPT_HTTPHEADER => array(
-            'Authorization: Basic ' . base64_encode("$picqer_api_username:$picqer_api_password"),
-          ),
-        ));
-        
-        $result = curl_exec($curl);
+              $partial_result = "Error: " . $e->getMessage();
+              break;
+              return $partial_result;
+      
+            } 
 
-        if (curl_errno ( $curl )) {
-          $result = 'Curl error: ' . curl_error ( $curl );
+            if( $picqer_api_offset_number == 0){
+              $result = $partial_result;
+            }else{
+              $result = array_merge($result, $partial_result);
+            }
+
+            if( count($partial_result) < 100 ){
+              break;
+            }
+
+            $picqer_api_offset_number += 100;
+          }
+          // infinite loop ends here
+
+          $result = json_encode($result);
+
+      }else{
+        try {
+
+          // connecting to the API
+          $curl = curl_init();
+  
+          curl_setopt_array($curl, array(
+            CURLOPT_URL => $picqer_api_base_url . 'products?search='.$picqer_filter_brands.'&offset=' . $picqer_api_offset_number,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_HTTPHEADER => array(
+              'Authorization: Basic ' . base64_encode("$picqer_api_username:$picqer_api_password"),
+            ),
+          ));
+          
+          $result = curl_exec($curl);
+  
+          if (curl_errno ( $curl )) {
+            $result = 'Curl error: ' . curl_error ( $curl );
+          }
+          
+          curl_close($curl);
+  
+        } catch (PDOException $e) {
+  
+            $result = "Error: " . $e->getMessage();
+  
         }
-        
-        curl_close($curl);
-
-      } catch (PDOException $e) {
-
-          $result = "Error: " . $e->getMessage();
-
       }
 
       return $result;
@@ -167,7 +226,7 @@ class PicqerApiQueries
       $result = '';
 
       if(!$open_ai_model || $open_ai_model == ''){
-        $open_ai_model = 'text-davinci-003';
+        $open_ai_model = 'gpt-3.5-turbo';
       }
       if(!$open_ai_temperature || $open_ai_temperature == ''){
         $open_ai_temperature = 0.9;
@@ -186,7 +245,7 @@ class PicqerApiQueries
 
         $open_ai = new OpenAi($open_ai_api_key);
 
-        $response = $open_ai->completion([
+        $result = $open_ai->completion([
             'model' => $open_ai_model,
             'prompt' => $open_ai_prompt,
             'temperature' => $open_ai_temperature,
@@ -195,22 +254,11 @@ class PicqerApiQueries
             'presence_penalty' => $open_ai_presence_penalty,
         ]);
 
-    } catch (PDOException $e) {
+      } catch (PDOException $e) {
 
-        $response = "Error: " . $e->getMessage();
+          $result = "Error: " . $e->getMessage();
 
-    }finally{
-
-      $response = json_decode($response, true);
-
-      // if no error
-      if(!isset($response['error'])){
-        if(isset($response["choices"][0]["text"])){
-          $result = $response["choices"][0]["text"];
-        }
       }
-
-    }
 
       return $result;
 

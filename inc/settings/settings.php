@@ -694,7 +694,7 @@ function woocommerce_picqer_api_open_ai_api_key_callback() {
 function woocommerce_picqer_api_open_ai_model_callback() {
     $woocommerce_picqer_api_input_field = get_option(WOOCOMMERCE_PICQER_API_PLUGIN_NAME . '_open_ai_model');
     ?>
-    <input type="text" name="<?php echo WOOCOMMERCE_PICQER_API_PLUGIN_NAME; ?>_open_ai_model" class="regular-text" list="open_ai_models" placeholder="Double click for dropdown. Default: text-davinci-003" value="<?php echo isset($woocommerce_picqer_api_input_field) && $woocommerce_picqer_api_input_field != '' ? $woocommerce_picqer_api_input_field : ''; ?>">
+    <input type="text" name="<?php echo WOOCOMMERCE_PICQER_API_PLUGIN_NAME; ?>_open_ai_model" class="regular-text" list="open_ai_models" placeholder="Double click for dropdown. Default: gpt-3.5-turbo" value="<?php echo isset($woocommerce_picqer_api_input_field) && $woocommerce_picqer_api_input_field != '' ? $woocommerce_picqer_api_input_field : ''; ?>">
     <datalist id="open_ai_models">
         <option value="gpt-4">
         <option value="gpt-3.5-turbo-instruct">
@@ -744,31 +744,56 @@ function woocommerce_picqer_api_import_template_callback() {
 
     // adding bootstrap css
     echo '<link rel="stylesheet" href="' . WOOCOMMERCE_PICQER_API_PLUGIN_URL . 'assets/css/bootstrap.min.css">';
+    // adding jquery
+    // echo '<script src="' . WOOCOMMERCE_PICQER_API_PLUGIN_URL . 'assets/js/jquery.min.js"></script>';
 
     ?>
 
-    <style>
-        .picqer_clickable_product_ids{
-            cursor: pointer;
-        }
-        .picqer_product_ids{
-            margin-right: 10px;
-            display: inline-block;
-        }
-        .picqer_product_ids:last-child{
-            margin-right: 0;
-        }
-    </style>
-
     <div class="wrap">
         <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
         <div class="row">
-            <div class="col-md-12">
-                <div class="text-center">
-                    <button type="submit" id="picqer_submit_all_ids_result" class="btn btn-primary mt-4">Show Product IDs</button>
-                    <button type="submit" id="picqer_import_all_products" class="btn btn-primary mt-4">Import All Products</button>
+
+            <div class="col-md-1">
+
+            </div>
+
+            <div class="col-md-4">
+                <div class="">
+                    <label for="picqer_api_offset_number" class="form-label">Number Of Offset</label>
+                    <input type="number" step="1" min="0" class="form-control" id="picqer_api_offset_number" name="picqer_api_offset_number" placeholder="Default is 0" required>
                 </div>
             </div>
+
+            <?php
+                // grabbing brands
+                $brands = file_get_contents( WOOCOMMERCE_PICQER_API_PLUGIN_PATH . 'inc/settings/brands.json' );
+                $brands = json_decode($brands, true);
+                $brands = $brands["brands"];
+            ?>
+
+            <div class="col-md-4">
+                <label for="picqer_filter_brands" class="form-label">Filter By Brand/Category</label>
+                <input type="text" id="picqer_filter_brands" name="picqer_filter_brands" class="form-control" list="picqer_brands_list" placeholder="Default is Null - Double click to view example list" value="">
+                <datalist id="picqer_brands_list">
+                    <?php
+                        foreach($brands as $brand_key => $single_brand){
+                            echo '<option value="'.$single_brand.'">';
+                        }
+                    ?>
+                </datalist>
+            </div>
+
+            <div class="col-md-2">
+                <div class="">
+                    <div class="text-center">
+                        <button type="submit" id="picqer_submit_all_ids_result" class="btn btn-primary mt-4">Show Product IDs</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
             <div class="col-md-12">
                 <div class="mt-5">
                     <?php 
@@ -777,6 +802,7 @@ function woocommerce_picqer_api_import_template_callback() {
                 </div>
             </div>
         </div>
+
     </div>
 
 
@@ -788,82 +814,33 @@ function woocommerce_picqer_api_import_template_callback() {
         
         var woocommerce_picqer_api_submit_button = $("#woocommerce_picqer_api_submit_button").html();
         var picqer_submit_all_ids_result = $("#picqer_submit_all_ids_result").html();
-        var picqer_import_all_products = $("#picqer_import_all_products").html();
         var picqer_api_product_id;
         var current_url = $(location).attr("href");
         var returnHTML;
 
         $("#picqer_submit_all_ids_result").click(function(){
+            let picqer_api_offset_number = $("#picqer_api_offset_number").val();
+            let picqer_filter_brands = $("#picqer_filter_brands").val();
             $("#picqer_submit_all_ids_result").attr("disabled", true);
             $("#woocommerce_picqer_api_submit_button").attr("disabled", true);
-            $("#picqer_import_all_products").attr("disabled", true);
             $("#picqer_submit_all_ids_result").html("Please wait...");
             $("#woocommerce_picqer_api_submit_button").html("Please wait...");
-            $("#picqer_import_all_products").html("Please wait...");
             $("#result").html("<h6>Please do not refresh or close this window while importing...</h6>");
 
             $.ajax({
                 type: "POST",
                 url: post_url,
-                data: {all_product: 'yes'}, 
+                data: {picqer_api_offset_number, picqer_filter_brands}, 
                 success: function(result){
                     $("#picqer_submit_all_ids_result").attr("disabled", false);
                     $("#woocommerce_picqer_api_submit_button").attr("disabled", false);
-                    $("#picqer_import_all_products").attr("disabled", false);
                     $("#picqer_submit_all_ids_result").html(picqer_submit_all_ids_result);
-                    $("#picqer_import_all_products").html(picqer_import_all_products);
                     $("#woocommerce_picqer_api_submit_button").html(woocommerce_picqer_api_submit_button);
                     $("#result").html(result);
                 }
             });
         });
 
-        $("#picqer_import_all_products").click(function(){
-            if (confirm("Are you sure, you want to import all the products?") == true) {
-                $("#picqer_submit_all_ids_result").attr("disabled", true);
-                $("#woocommerce_picqer_api_submit_button").attr("disabled", true);
-                $("#picqer_import_all_products").attr("disabled", true);
-                $("#picqer_submit_all_ids_result").html("Please wait...");
-                $("#woocommerce_picqer_api_submit_button").html("Importing...");
-                $("#picqer_import_all_products").html("Please wait...");
-                $("#result").html("<h6>Please do not refresh or close this window while importing...</h6>");
-
-                $.ajax({
-                    type: "POST",
-                    url: post_url,
-                    data: {import_all_product: 'yes', current_url},
-                    timeout: 1200000,
-                    success: function(result){
-                        $("#picqer_submit_all_ids_result").attr("disabled", false);
-                        $("#woocommerce_picqer_api_submit_button").attr("disabled", false);
-                        $("#picqer_import_all_products").attr("disabled", false);
-                        $("#picqer_submit_all_ids_result").html(picqer_submit_all_ids_result);
-                        $("#picqer_import_all_products").html(picqer_import_all_products);
-                        $("#woocommerce_picqer_api_submit_button").html(woocommerce_picqer_api_submit_button);
-                        $("#result").html("Total Imported = " + result);
-                    },
-                    error: function(xmlhttprequest, textstatus, message) {
-                        $("#picqer_submit_all_ids_result").attr("disabled", false);
-                        $("#woocommerce_picqer_api_submit_button").attr("disabled", false);
-                        $("#picqer_import_all_products").attr("disabled", false);
-                        $("#picqer_submit_all_ids_result").html(picqer_submit_all_ids_result);
-                        $("#picqer_import_all_products").html(picqer_import_all_products);
-                        $("#woocommerce_picqer_api_submit_button").html(woocommerce_picqer_api_submit_button);
-                        
-                        if( textstatus === "timeout") {
-                            $("#result").html(textstatus + " : " + "Server Timeout");
-                        } else {
-                            if(message === ""){
-                                $("#result").html(textstatus + " : " + "Server Timeout");
-                            }else{
-                                $("#result").html(textstatus + " : " + message);
-                            }
-                        }
-                    }
-                });
-            }
-            // if confirm ends here
-        });
 
     });
 

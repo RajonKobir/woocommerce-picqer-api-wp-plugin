@@ -1,0 +1,4 @@
+[17-Sep-2024 18:35:24 UTC] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, string given in /home/customer/www/hogewerkschoenen.nl/public_html/wp-content/plugins/woocommerce_picqer_api/inc/shortcodes/includes/post.php:84
+Stack trace:
+#0 {main}
+  thrown in /home/customer/www/hogewerkschoenen.nl/public_html/wp-content/plugins/woocommerce_picqer_api/inc/shortcodes/includes/post.php on line 84
