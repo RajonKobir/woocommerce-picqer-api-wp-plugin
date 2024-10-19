@@ -70,7 +70,7 @@ function importPicqerProducts($attr) {
 
     <div class='form-group'>
         <label for='validationCustom01' class='form-label'>".$args['form_name_input_label']."</label>
-        <input name='woocommerce_picqer_api_product_id_field' id='woocommerce_picqer_api_product_id_field' minlength='5' maxlength='50' type='text' class='form-control' id='validationCustom01' value='' required>
+        <input name='woocommerce_picqer_api_product_id_field' id='woocommerce_picqer_api_product_id_field' minlength='1' maxlength='50' type='text' class='form-control' id='validationCustom01' value='' required>
         <div class='valid-feedback'>
         Perfect!
         </div>

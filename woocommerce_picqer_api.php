@@ -95,17 +95,17 @@ function woocommerce_picqer_api_deactivation_function(){
 }
 
 // custom image upload
-function woocommerce_picqer_api_custom_image_file_upload( $api_image_url, $api_image_name ) {
+function woocommerce_picqer_api_custom_image_file_upload( $api_image_url, $api_image_name = null, $post_id = null ) {
 
-	// it allows us to use download_url() and wp_handle_sideload() functions
-	require_once( ABSPATH . 'wp-admin/includes/file.php' );
+    // it allows us to use download_url() and wp_handle_sideload() functions
+    require_once( ABSPATH . 'wp-admin/includes/file.php' );
 
-	// download to temp dir
-	$temp_file = download_url( $api_image_url );
+    // download to temp dir
+    $temp_file = download_url( $api_image_url );
 
-	if( is_wp_error( $temp_file ) ) {
-		return false;
-	}
+    if( is_wp_error( $temp_file ) ) {
+        return false;
+    }
 
     // $image_full_name = basename( $temp_file );
     $image_full_name = basename( $api_image_url );
@@ -113,55 +113,60 @@ function woocommerce_picqer_api_custom_image_file_upload( $api_image_url, $api_i
     $image_name = $image_name_array[0];
     $image_extension = $image_name_array[1];
 
-    $updated_image_full_name = $api_image_name . '.' . $image_extension;
+    if( $api_image_name === null ){
+        $updated_image_full_name = $image_name . '.' . $image_extension;
+    }else{
+        $updated_image_full_name = $api_image_name . '.' . $image_extension;
+    }
 
-	// move the temp file into the uploads directory
-	$file = array(
-		'name'     => $updated_image_full_name,
-		'type'     => mime_content_type( $temp_file ),
-		'tmp_name' => $temp_file,
-		'size'     => filesize( $temp_file ),
-	);
-	$sideload = wp_handle_sideload(
-		$file,
-		array(
+    // move the temp file into the uploads directory
+    $file = array(
+        'name'     => $updated_image_full_name,
+        'type'     => mime_content_type( $temp_file ),
+        'tmp_name' => $temp_file,
+        'size'     => filesize( $temp_file ),
+    );
+    $sideload = wp_handle_sideload(
+        $file,
+        array(
             // no needs to check 'action' parameter
-			'test_form'   => false 
-		)
-	);
+            'test_form'   => false 
+        )
+    );
 
-	if( ! empty( $sideload[ 'error' ] ) ) {
-		// you may return error message if you want
-		return false;
-	}
+    if( ! empty( $sideload[ 'error' ] ) ) {
+        // you may return error message if you want
+        return false;
+    }
 
-	// it is time to add our uploaded image into WordPress media library
-	$attachment_id = wp_insert_attachment(
-		array(
-			'guid'           => $sideload[ 'url' ],
-			'post_mime_type' => $sideload[ 'type' ],
-			'post_title'     => basename( $sideload[ 'file' ] ),
-			'post_content'   => '',
-			'post_status'    => 'inherit',
-		),
-		$sideload[ 'file' ]
-	);
+    // it is time to add our uploaded image into WordPress media library
+    $attachment_id = wp_insert_attachment(
+        array(
+            'guid'           => $sideload[ 'url' ],
+            'post_mime_type' => $sideload[ 'type' ],
+            'post_title'     => basename( $sideload[ 'file' ] ),
+            'post_content'   => '',
+            'post_status'    => 'inherit',
+        ),
+        $sideload[ 'file' ],
+        $post_id
+    );
 
-	if( is_wp_error( $attachment_id ) || ! $attachment_id ) {
-		return false;
-	}
+    if( is_wp_error( $attachment_id ) || ! $attachment_id ) {
+        return false;
+    }
 
-	// update medatata, regenerate image sizes
-	require_once( ABSPATH . 'wp-admin/includes/image.php' );
+    // update medatata, regenerate image sizes
+    require_once( ABSPATH . 'wp-admin/includes/image.php' );
 
-	wp_update_attachment_metadata(
-		$attachment_id,
-		wp_generate_attachment_metadata( $attachment_id, $sideload[ 'file' ] )
-	);
+    wp_update_attachment_metadata(
+        $attachment_id,
+        wp_generate_attachment_metadata( $attachment_id, $sideload[ 'file' ] )
+    );
 
     @unlink( $temp_file );
 
-	return $attachment_id;
+    return $attachment_id;
 
 }
 // custom image upload ends here
@@ -335,6 +340,36 @@ function un_delete_picqer_product( $post_id ){
 // triggers on manually un-trashing a Picqer Product ends here
 
 
+// delete product images upon product deletion
+if ( !function_exists('delete_images_with_product') ){
+    add_action( 'before_delete_post', 'delete_images_with_product' );
+    function delete_images_with_product( $post_id ){
+        // if WC product
+        $product = wc_get_product( $post_id );
+        if ( !$product ) {
+            return;
+        }
+
+        //get images
+        $featured_image_id  = $product->get_image_id();
+        $image_galleries_id = $product->get_gallery_image_ids();
+
+        //delete featured (check first if empty)s
+        if ( ! empty( $featured_image_id ) ) {
+            wp_delete_post( $featured_image_id );
+        }
+
+        //delete gallery/attachment (check first if empty)
+        if ( ! empty( $image_galleries_id ) ) {
+            foreach ( $image_galleries_id as $single_image_id ) {
+                wp_delete_post( $single_image_id );
+            }
+        }
+    }
+}
+// delete product images upon product deletion ends here
+
+
 // permanently delete hook
 add_action( 'before_delete_post', 'permanently_delete_picqer_product', 10, 1 );
 function permanently_delete_picqer_product( $post_id ){
@@ -358,6 +393,15 @@ function permanently_delete_picqer_product( $post_id ){
 			if( count($picqer_products_sku_list) == 0 ){
 				update_option( 'picqer_sku_next_to_update', '' );
 			}
+
+            // delete the product images
+            $product_images_ids_array = $product->get_gallery_image_ids();
+            if( count($product_images_ids_array) > 0 ){
+                foreach( $product_images_ids_array as $single_key => $single_image_id ){
+                    wp_delete_attachment( $single_image_id, true);
+                }
+            }
+
         }
     }else{
 		update_option( 'picqer_sku_next_to_update', '' );
@@ -434,3 +478,121 @@ if(file_exists( WOOCOMMERCE_PICQER_API_PLUGIN_PATH . 'cron.php')){
     }
 }
 // adding new cron task to the system ends here
+
+
+// update WC single product page meta
+if ( !function_exists('custom_update_wc_page_meta') ){
+    add_action( 'wp_head', 'custom_update_wc_page_meta', 1 );
+    function custom_update_wc_page_meta(){
+        if ( is_single() && is_product() ){
+
+            echo "\n";
+            echo "\n";
+
+            echo '<!-- Meta Tags Generated By '.WOOCOMMERCE_PICQER_API_PLUGIN_NAME.' -->';
+
+            echo "\n";
+            echo '<meta name="generator" content="'.WOOCOMMERCE_PICQER_API_PLUGIN_NAME.'" />';
+            if( get_post_meta(get_the_ID(), 'tags', true) != ''){
+                echo "\n";
+                echo '<meta name="keywords" content="'.get_post_meta(get_the_ID(), 'tags', true).'" />';
+            }
+            if( get_post_meta(get_the_ID(), 'description', true) != ''){
+                echo "\n";
+                echo '<meta name="description" content="'.get_post_meta(get_the_ID(), 'description', true).'" />';
+            }else{
+                echo "\n";
+                echo '<meta name="description" content="'.get_the_content(get_the_ID()).'" />';
+            }
+
+            echo "\n";
+            echo '<meta name="robots" content="max-image-preview:large" />';
+            echo "\n";
+            echo '<link rel="canonical" href="'.get_the_permalink(get_the_ID()).'" />';
+            echo "\n";
+            echo '<meta property="og:locale" content="nl-NL" />';
+            echo "\n";
+            echo '<meta property="og:site_name" content="'.get_the_title(get_the_ID()).'" />';
+            echo "\n";
+            echo '<meta property="og:type" content="product" />';
+            echo "\n";
+            echo '<meta property="og:title" content="'.get_the_title(get_the_ID()).'" />';
+
+            if( get_post_meta(get_the_ID(), 'description', true) != ''){
+                echo "\n";
+                echo '<meta name="og:description" content="'.get_post_meta(get_the_ID(), 'description', true).'" />';
+            }else{
+                echo "\n";
+                echo '<meta name="og:description" content="'.get_the_content(get_the_ID()).'" />';
+            }
+
+            echo "\n";
+            echo '<meta property="og:url" content="'.get_the_permalink(get_the_ID()).'" />';
+
+            // if the thumbnail exists
+            if( get_post_thumbnail_id(get_the_ID()) ){
+                echo "\n";
+                echo '<meta property="og:image" content="'.wp_get_attachment_url( get_post_thumbnail_id(get_the_ID()), 'thumbnail' ).'" />';
+                echo "\n";
+                echo '<meta property="og:image:secure_url" content="'.wp_get_attachment_url( get_post_thumbnail_id(get_the_ID()), 'thumbnail' ).'" />';
+                echo "\n";
+                echo '<meta property="og:image:width" content="'.wp_get_attachment_image_src( get_post_thumbnail_id(get_the_ID()), 'full' )[1].'" />';
+                echo "\n";
+                echo '<meta property="og:image:height" content="'.wp_get_attachment_image_src( get_post_thumbnail_id(get_the_ID()), 'full' )[2].'" />';
+            }
+
+            echo "\n";
+            echo '<meta name="twitter:card" content="summary_large_image" />';
+            echo "\n";
+            echo '<meta name="twitter:title" content="'.get_the_title(get_the_ID()).'" />';
+            if( get_post_meta(get_the_ID(), 'description', true) != ''){
+                echo "\n";
+                echo '<meta name="twitter:description" content="'.get_post_meta(get_the_ID(), 'description', true).'" />';
+            }else{
+                echo "\n";
+                echo '<meta name="twitter:description" content="'.get_the_content(get_the_ID()).'" />';
+            }
+
+            // if the thumbnail exists
+            if( get_post_thumbnail_id(get_the_ID()) ){
+                echo "\n";
+                echo '<meta name="twitter:image" content="'.wp_get_attachment_url( get_post_thumbnail_id(get_the_ID()), 'thumbnail' ).'" />';
+            }
+
+            echo "\n";
+            echo '<meta name="twitter:label1" content="Written by" />';
+            echo "\n";
+            echo '<meta name="twitter:data1" content="'.get_the_author_meta('display_name', get_post_field('post_author', get_the_ID())).'" />';
+
+            echo "\n";
+            require_once WOOCOMMERCE_PICQER_API_PLUGIN_PATH . 'schema.php';
+
+            echo "\n";
+            echo '<!-- Meta Tags Generated By '.WOOCOMMERCE_PICQER_API_PLUGIN_NAME.' ends here -->';
+
+            echo "\n";
+            echo "\n";
+        }
+    }
+}
+
+
+// disable xml-rpc
+if ( !function_exists('disable_xml_rpc') ){
+    function disable_xml_rpc(){
+        add_filter( 'xmlrpc_enabled', '__return_false' );
+    }
+    disable_xml_rpc();
+}
+
+
+// disconnecting AIOSEO from single product page
+if ( !function_exists('aioseo_disable_term_output') ){
+    add_filter( 'aioseo_disable', 'aioseo_disable_term_output' );
+    function aioseo_disable_term_output( $disabled ) {
+        if ( is_single() && is_product() ) {
+            return true;
+        }
+        return false;
+    }
+}

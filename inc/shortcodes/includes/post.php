@@ -1148,31 +1148,6 @@ if($open_ai_api_key && $open_ai_api_key != ''){
 
 
 
-          // initializing
-          $updated_images_array = [];
-          $missed_images_array = [];
-
-          // adding images
-          foreach($picqer_all_image_src_array as $image_key => $single_picqer_image){
-            try {
-              $image_id = woocommerce_picqer_api_custom_image_file_upload( $single_picqer_image['src'], $single_picqer_image['name'] );
-            }catch (PDOException $e) {
-              $resultHTML .= "Error: " . $e->getMessage();
-            }finally{
-              if(is_int($image_id)){
-                array_push($updated_images_array,  [
-                  'id' => $image_id,
-                  'name' => $single_picqer_image['name'],
-                  'alt' => $single_picqer_image['alt'],
-                ]);
-              }else{
-                array_push($missed_images_array, $image_key + 1);
-              }
-            }
-          }
-
-
-
           // creating product data
           $data = [
             'name' => $picqer_model_name,
@@ -1188,7 +1163,7 @@ if($open_ai_api_key && $open_ai_api_key != ''){
                     'id' => (isset($callBack5->id)) ? $callBack5->id : $key5,
                 ],
             ],
-            'images' => $updated_images_array,
+            // 'images' => $updated_images_array,
             'tags'  => $tags_array,
             'meta_data' =>  $product_meta_data_array,
           ];
@@ -1245,6 +1220,57 @@ if($open_ai_api_key && $open_ai_api_key != ''){
                   $resultHTML .= '<p class="text-center">Product ('.$picqer_model_name.') could not be imported!</p>';
                 }
               // product not created ends here
+
+
+              // initializing
+              $updated_images_array = [];
+              $missed_images_array = [];
+
+              // adding images
+              foreach($picqer_all_image_src_array as $image_key => $single_picqer_image){
+                try {
+                  $image_id = woocommerce_picqer_api_custom_image_file_upload( $single_picqer_image['src'], $single_picqer_image['name'], $wc_product_id );
+                }catch (PDOException $e) {
+                  $resultHTML .= "Error: " . $e->getMessage();
+                }finally{
+                  if(is_int($image_id)){
+                    array_push($updated_images_array,  [
+                      'id' => $image_id,
+                      'name' => $single_picqer_image['name'],
+                      'alt' => $single_picqer_image['alt'],
+                    ]);
+                  }else{
+                    array_push($missed_images_array, $image_key + 1);
+                  }
+                }
+              }
+
+
+              // creating product data
+              $data = [
+                'images' => $updated_images_array
+              ];
+
+              try {
+
+                // trying to update a WC product
+                $update_wc_prod = $woocommerce->put('products/' . strval($wc_product_id), $data);
+
+              }catch (PDOException $e) {
+
+                $resultHTML .= "Error: " . $e->getMessage();
+
+              }finally{
+
+                $wc_retrieved_product = $update_wc_prod;
+                $product_id = $wc_retrieved_product->id;
+                $product_sku = $wc_retrieved_product->sku;
+
+                $resultHTML .= '<p class="text-center">Product ('.$product_id.') => ('.$product_sku.') => ('.$picqer_model_name.') updated successfully!</p>';
+
+              }
+
+
 
             }
 
@@ -1402,7 +1428,7 @@ if($open_ai_api_key && $open_ai_api_key != ''){
                   $image_id = $updated_images_array[0]->id;
 
                   if ($wc_retrieved_product->sku != strval($picqer_barcode) ) {
-                    $image_id = woocommerce_picqer_api_custom_image_file_upload( $picqer_all_image_src_array[0]['src'], $picqer_all_image_src_array[0]['name'] );
+                    $image_id = woocommerce_picqer_api_custom_image_file_upload( $picqer_all_image_src_array[0]['src'], $picqer_all_image_src_array[0]['name'], $wc_product_id );
 
                     array_push($updated_images_array, [
                       'id' => $image_id,
